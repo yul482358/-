@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>肖4速背</title>
+    
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f5f7fa">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/color/192/books.png">
+
+    <style>
+        :root {
+            /* 护眼流体渐变背景 */
+            --bg-light: #f5f7fa;
+            --gradient-blob-1: #e0c3fc;
+            --gradient-blob-2: #8ec5fc;
+            
+            /* 玻璃卡片 */
+            --glass-bg: rgba(255, 255, 255, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --text-main: #1d1d1f;
+            --text-dim: #6e6e73;
+            --highlight: #ff3b30;
+            --card-shadow: 0 8px 32px rgba(31, 38, 135, 0.05);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-light: #121212;
+                --gradient-blob-1: #2c3e50;
+                --gradient-blob-2: #000000;
+                --glass-bg: rgba(30, 30, 30, 0.75);
+                --glass-border: rgba(255, 255, 255, 0.1);
+                --text-main: #f5f5f7;
+                --text-dim: #a1a1a6;
+                --highlight: #ff6b60;
+            }
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; outline: none; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            height: 100dvh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 动态背景动画 */
+        .ambient-light {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.6;
+            animation: move 20s infinite alternate;
+        }
+        .blob-1 { top: -10%; left: -10%; width: 500px; height: 500px; background: var(--gradient-blob-1); }
+        .blob-2 { bottom: -10%; right: -10%; width: 400px; height: 400px; background: var(--gradient-blob-2); animation-delay: -10s; }
+        
+        @keyframes move {
+            from { transform: translate(0, 0) scale(1); }
+            to { transform: translate(20px, -20px) scale(1.1); }
+        }
+
+        /* 视图系统 */
+        .view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column;
+            padding-top: max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            animation: fadeIn 0.3s ease;
+        }
+        .view.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.99); } to { opacity: 1; transform: scale(1); } }
+
+        /* 首页与目录 */
+        .header { padding: 30px 24px 10px; flex-shrink: 0; }
+        .header h1 { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+        .header p { font-size: 14px; color: var(--text-dim); }
+
+        .scroll-content { flex: 1; overflow-y: auto; padding: 20px 24px 80px; }
+        
+        .card-btn {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.1s;
+        }
+        .card-btn:active { transform: scale(0.97); }
+        .card-btn h3 { font-size: 19px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .card-btn p { font-size: 13px; color: var(--text-dim); opacity: 0.8; }
+
+        /* 标签 */
+        .tag { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #fff; vertical-align: middle; margin-right: 6px; }
+        .bg-1 { background: #FF3B30; } /* 马原 */
+        .bg-2 { background: #FF9500; } /* 新思想 */
+        .bg-3 { background: #34C759; } /* 史纲 */
+        .bg-4 { background: #007AFF; } /* 思修 */
+        .bg-5 { background: #5856D6; } /* 当代 */
+
+        /* 背诵视图 (Swiper) */
+        .swiper-container {
+            flex: 1;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth; /* 丝滑滚动 */
+        }
+        
+        .slide {
+            height: 100%;
+            width: 100%;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .flash-card {
+            width: 100%; height: 100%;
+            max-width: 600px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .fc-top { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+        .fc-q { font-size: 20px; font-weight: 700; line-height: 1.4; margin-bottom: 30px; }
+        
+        .fc-mask {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            color: var(--text-dim); border: 2px dashed var(--glass-border);
+            border-radius: 12px; margin-bottom: 20px; cursor: pointer;
+            font-size: 14px; min-height: 200px;
+        }
+        
+        .fc-a { display: none; font-size: 17px; line-height: 1.7; text-align: justify; padding-bottom: 40px; color: var(--text-main); }
+        .revealed .fc-a { display: block; animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .revealed .fc-mask { display: none; }
+        
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 重点高亮 */
+        strong { color: var(--highlight); background: rgba(255,59,48,0.08); padding: 0 4px; border-radius: 4px; }
+
+        /* 底部导航 */
+        .nav-bar {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(20px);
+            color: white; padding: 12px 24px; border-radius: 50px;
+            display: flex; align-items: center; gap: 15px; font-size: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); cursor: pointer; z-index: 100;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="ambient-light">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div id="view-home" class="view active">
+        <div class="header">
+            <h1>肖4速背</h1>
+            <p>2025 考研政治 · 纯净护眼版</p>
+        </div>
+        <div class="scroll-content">
+            <div class="card-btn" onclick="App.selectSet(1)">
+                <h3>第一套卷 <span style="font-size:14px;opacity:0.5">SET 1</span></h3>
+                <p style="margin-top:8px">重点：科技创新 / 高质量发展 / 抗日战争</p>
+            </div>
+            <div class="card-btn" onclick="App.selectSet(2)">
+                <h3>第二套卷 <span style="font-size:14px;opacity:0.5">SET 2</span></h3>
+                <p style="margin-top:8px">重点：矛盾分析 / 统一大市场 / 党的领导</p>
+            </div>
+            <div class="card-btn" onclick="App.selectSet(3)">
+                <h3>第三套卷 <span style="font-size:14px;opacity:0.5">SET 3</span></h3>
+                <p style="margin-top:8px">重点：区域协调 / 遵义长征 / 中流砥柱</p>
+            </div>
+            <div class="card-btn" onclick="App.selectSet(4)">
+                <h3>第四套卷 <span style="font-size:14px;opacity:0.5">SET 4</span></h3>
+                <p style="margin-top:8px">重点：新质生产力 / 延安作风 / 全球倡议</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-subject" class="view">
+        <div class="header">
+            <h1 id="set-title">第一套卷</h1>
+            <p>点击科目跳转，可上下滑动翻阅全卷</p>
+        </div>
+        <div class="scroll-content">
+            <div class="card-btn" onclick="App.startStudy('all')">
+                <h3>🚀 从头开始 <span style="font-size:14px;opacity:0.5">Start</span></h3>
+                <p style="margin-top:8px">按顺序完整背诵本套试卷</p>
+            </div>
+            <div class="card-btn" onclick="App.startStudy('马原')">
+                <h3><span class="tag bg-1">马原</span> 原理分析</h3>
+            </div>
+            <div class="card-btn" onclick="App.startStudy('新思想')">
+                <h3><span class="tag bg-2">新思想</span> 毛中特</h3>
+            </div>
+            <div class="card-btn" onclick="App.startStudy('史纲')">
+                <h3><span class="tag bg-3">史纲</span> 近代史</h3>
+            </div>
+            <div class="card-btn" onclick="App.startStudy('思修')">
+                <h3><span class="tag bg-4">思修</span> 思想道德</h3>
+            </div>
+            <div class="card-btn" onclick="App.startStudy('当代')">
+                <h3><span class="tag bg-5">当代</span> 形势政策</h3>
+            </div>
+        </div>
+        <div class="nav-bar" onclick="App.switchView('home')">
+            <span>✕ 返回首页</span>
+        </div>
+    </div>
+
+    <div id="view-study" class="view">
+        <div class="swiper-container" id="card-container">
+            </div>
+        <div class="nav-bar" onclick="App.switchView('subject')">
+            <span>☰ 切换章节</span>
+        </div>
+    </div>
+
+    <script>
+        // ================= 数据中心 =================
+        const DATA = [
+            // 第一套
+            [cite_start]{ set: 1, sub: "马原", q: "如何理解“向善惠民,始终是科技创新的价值取向”?", a: "<strong>科学技术是推动社会文明进步的重要力量</strong>。[cite: 5][cite_start]<br><br>科学技术的作用既受到一定客观条件(如社会制度)的影响，也受到一定主观条件(如认识水平)的影响。[cite: 6][cite_start]<br><br>任何成功的实践都是<strong>真理尺度和价值尺度的统一</strong>，是合规律性和合目的性的统一。[cite: 8]" },
+            [cite_start]{ set: 1, sub: "马原", q: "为什么在鼓励创新的同时也要宽容失败?", a: "<strong>真理与谬误、成功与失败在一定条件下能够相互转化。</strong>[cite: 11][cite_start]<br><br>①<strong>总结失败的教训，是获得真理的重要方法。</strong>只要勇于正视和修正错误，终能让谬误转化为真理。[cite: 12, 13][cite_start]<br>②<strong>在批判谬误中发展真理</strong>，是谬误向真理转化的一种形式。[cite: 14][cite_start]<br>③<strong>事物的发展是前进性与曲折性的统一</strong>。[cite: 15]" },
+            [cite_start]{ set: 1, sub: "新思想", q: "为什么唯有将新发展理念“贯穿发展全过程”才能实现格局之变?", a: "<strong>发展理念是发展行动的先导</strong>，从根本上决定着发展成效。[cite: 22][cite_start]<br><br>新发展理念深化了我们党对中国特色社会主义经济发展规律的认识。[cite: 23][cite_start]<br><br>新发展理念引领我们以<strong>推动高质量发展</strong>为主题，实现质的有效提升和量的合理增长。[cite: 24]" },
+            [cite_start]{ set: 1, sub: "新思想", q: "如何理解“以高质量发展的确定性应对各种不确定性”?", a: "<strong>(地位)</strong> 高质量发展是全面建设社会主义现代化国家的首要任务。[cite: 27, 28][cite_start]<br><strong>(定义)</strong> 从“有没有”转向“好不好”。[cite: 30][cite_start]<br><strong>(确定性)</strong><br>①<strong>发展战略</strong>的确定性；<br>②<strong>宏观政策</strong>的确定性；<br>③<strong>市场空间</strong>的确定性；<br>④<strong>发展韧性</strong>的确定性；<br>⑤<strong>投资环境</strong>的确定性。<br><strong>口诀：人头是略红 (韧投市略宏)</strong> [cite: 34, 35, 36, 37, 38, 39]" },
+            [cite_start]{ set: 1, sub: "史纲", q: "如何理解抗日战争具有“拯救人类文明、保卫世界和平”的意义?", a: "<strong>日本法西斯既是中国人民的敌人，也是世界人民的敌人。</strong>[cite: 45][cite_start]<br><br>1931年九一八事变揭开了世界反法西斯战争的序幕。[cite: 46][cite_start]<br><strong>中国是彻底消灭日本法西斯的决定性力量</strong>，为世界战场提供缓冲。[cite: 46][cite_start]<br>中国参与创建联合国，为建立战后国际新秩序注入东方智慧。[cite: 47][cite_start]<br><strong>世界反法西斯战争是一个整体</strong>，中国抗战是其中的重要组成部分。[cite: 48]" },
+            [cite_start]{ set: 1, sub: "史纲", q: "为什么要建设世界一流军队?", a: "<strong>历史教训：</strong>大革命失败表明必须坚持武装斗争。[cite: 51][cite_start]<br><strong>历史成就：</strong>南昌起义创建人民军队；抗美援朝巩固大国地位。[cite: 51, 52][cite_start]<br><strong>现实意义：</strong><strong>巩固国防和强大人民军队是实现中华民族伟大复兴的战略支撑。</strong>只有以强大军事实力为后盾，国家安全和人民幸福才有保障。[cite: 53]" },
+            [cite_start]{ set: 1, sub: "思修", q: "寻找英烈、致敬英烈为什么是“精神层面的自我洗礼”?", a: "国家强盛需要物质文明，<strong>更需要精神文明的升华</strong>。[cite: 60][cite_start]<br><br>传承红色基因是对世界观、价值观的洗礼，会转化为报国行的内生动力。[cite: 60][cite_start]<br><br>新时代是呼唤英雄也创造英雄的时代，<strong>崇尚英雄才会产生英雄</strong>。青年应沿着英雄足迹，勇担时代大任。[cite: 61]" },
+            [cite_start]{ set: 1, sub: "思修", q: "新时代青年如何“把个人奋斗同国家前途命运紧紧联系在一起”?", a: "实质是坚持<strong>个人理想与社会理想的有机结合</strong>。[cite: 64][cite_start]<br><br>①<strong>怀爱国之心</strong> (爱国是本分)。[cite: 67][cite_start]<br>②<strong>立报国之志</strong> (融入国家大我)。[cite: 68][cite_start]<br>③<strong>增强国之能</strong> (练就真本领)。[cite: 69]" },
+            [cite_start]{ set: 1, sub: "当代", q: "如何理解全球治理倡议“同联合国宪章宗旨和原则一脉相承”?", a: "联合国宪章倡导<strong>主权平等、不干涉内政</strong>等原则。[cite: 76][cite_start]<br><br>全球治理倡议的五大核心理念(<strong>奉行主权平等、遵守国际法治、践行多边主义、倡导以人为本、注重行动导向</strong>)阐明了治理变革的方向。[cite: 78][cite_start]<br><br>二者一脉相承，有助于现行国际体系更好服务各国利益。[cite: 79]" },
+            [cite_start]{ set: 1, sub: "当代", q: "“四大全球倡议”体现了怎样的外交理念?", a: "体现了致力于<strong>构建人类命运共同体</strong>的外交理念和<strong>以天下之利为利</strong>的世界情怀。[cite: 82][cite_start]<br><br>四大倡议分别从发展、安全、文明、治理四个维度，破解“四大赤字”。[cite: 83][cite_start]<br><br>四大倡议各有侧重、相辅相成，构成一个有机整体。[cite: 84]" },
+
+            // 第二套
+            [cite_start]{ set: 2, sub: "马原", q: "运用矛盾分析方法，说明“学习借鉴并非简单复制”", a: "<strong>矛盾具有普遍性</strong>(无处不在)，<strong>矛盾又具有特殊性</strong>(各有特点)。[cite: 90][cite_start]<br><br>矛盾特殊性决定事物不同性质。<strong>只有具体分析矛盾特殊性，才能认清本质，解决矛盾。</strong>[cite: 91][cite_start]<br><br>核心要求是<strong>具体问题具体分析</strong>。任何事物都是共性和个性的统一，借鉴时要考虑特殊性，因地制宜。[cite: 92]" },
+            [cite_start]{ set: 2, sub: "马原", q: "分析以“共赢”取代“内卷”所体现的辩证思维", a: "<strong>对立统一规律</strong>是唯物辩证法的实质和核心。[cite: 95][cite_start]<br><br><strong>矛盾的同一性和斗争性相互联结。</strong>同一性使得矛盾双方相互吸取有利因素，各自发展。[cite: 96][cite_start]<br><br>辩证思维要求用全面观点看问题，从对立中把握统一。事物发展既可“相反相成”也可“相辅相成”。[cite: 97]" },
+            [cite_start]{ set: 2, sub: "新思想", q: "越是环境严峻，越要坚持“扩大内需”这个战略基点?", a: "<strong>(地位)</strong> 构建新发展格局是<strong>推动高质量发展的战略基点</strong>。[cite: 103][cite_start]<br><strong>(原因)</strong> <strong>强大国内市场是中国式现代化的战略依托</strong>。依托国内市场有利于化解外部冲击，保证经济正常运行。[cite: 104][cite_start]<br><strong>(做法)</strong> 坚持扩大内需，促进消费和投资良性互动。[cite: 105, 106]" },
+            [cite_start]{ set: 2, sub: "新思想", q: "为什么说“坚持有效市场和有为政府相结合”是重要方法?", a: "构建高水平社会主义市场经济体制，关键是<strong>使市场在资源配置中起决定性作用，更好发挥政府作用</strong>。[cite: 109][cite_start]<br><br><strong>(市场)</strong> 建设统一大市场，本质是让资源在更大范围内高效配置。[cite: 110][cite_start]<br><strong>(政府)</strong> 管好市场管不了的事情。[cite: 111][cite_start]<br><strong>(结合)</strong> 让“无形之手”和“有形之手”协同发力。[cite: 112]" },
+            [cite_start]{ set: 2, sub: "史纲", q: "如何理解今天成就建立在老一辈“打下的江山、攒下的家底”之上?", a: "<strong>政治前提：</strong>成立新中国，实现了从封建专制向人民民主的伟大飞跃。[cite: 117][cite_start]<br><strong>制度基础：</strong>完成社会主义革命，确立社会主义基本制度。[cite: 118][cite_start]<br><strong>物质基础：</strong>建立独立的、比较完整的工业体系和国民经济体系，赢得了经济独立。[cite: 119][cite_start]<br><strong>理论准备：</strong>独创性理论成果为开创中国特色社会主义提供宝贵经验。[cite: 120]" },
+            [cite_start]{ set: 2, sub: "史纲", q: "说明党的领导是实现中国式现代化的根本保证", a: "<strong>制定中长期规划</strong>是党治国理政的重要方式。从“一五”到“十四五”，确保“一张蓝图绘到底”。[cite: 123][cite_start]<br><br>党的领导决定中国式现代化的<strong>根本性质</strong>；确保锚定目标行稳致远；凝聚磅礴力量；激发强劲动力。[cite: 124]" },
+            [cite_start]{ set: 2, sub: "思修", q: "为什么说“传承伟大抗战精神”是力量源泉?", a: "①是<strong>中国发展进步的重要精神密码</strong>。[cite: 130][cite_start]<br>②是<strong>中国人民弥足珍贵的精神财富</strong>，继承了爱国主义精神。[cite: 132][cite_start]<br>③是<strong>新征程上创造历史伟业的强大力量源泉</strong>。[cite: 133][cite_start]<br><br>伟大抗战精神既是历史的，也是现实的，更是未来的。[cite: 134]" },
+            [cite_start]{ set: 2, sub: "思修", q: "为什么要“大力弘扬劳模精神、劳动精神、工匠精神”?", a: "<strong>劳动是一切幸福的源泉。</strong>[cite: 137][cite_start]<br><br><strong>劳模精神</strong>：形成榜样力量；<br><strong>劳动精神</strong>：汇聚广泛力量；<br><strong>工匠精神</strong>：培育时代新人。[cite: 139, 140, 141][cite_start]<br><br>爱岗敬业是职业生活的基本道德规范。[cite: 142]" },
+            [cite_start]{ set: 2, sub: "当代", q: "如何理解“多边主义是解决全球性难题的正确答案”?", a: "<strong>联合国初心</strong>是维持和平与安全，根植于二战反思。[cite: 149][cite_start]<br><br>全球性问题超越国界，单一国家无法独自应对。<strong>多边主义与团结合作是必然选择</strong>。[cite: 150][cite_start]<br><br>中国坚定维护联合国权威，践行真正的多边主义。[cite: 151]" },
+            [cite_start]{ set: 2, sub: "当代", q: "为什么说中国是“维护和平与发展的稳定锚”?", a: "<strong>坚持走和平发展道路</strong>是战略抉择。[cite: 154][cite_start]<br><br>中国倡导合作共赢(全球发展倡议)；[cite: 155][cite_start]<br>坚持共同综合安全观(全球安全倡议)；[cite: 156][cite_start]<br>坚持平等互鉴文明观(全球文明倡议)；[cite: 157][cite_start]<br>推动构建公正合理的全球治理体系。[cite: 158]" },
+
+            // 第三套
+            [cite_start]{ set: 3, sub: "马原", q: "分析“借牧”模式蕴含的辩证法原理", a: "<strong>联系是唯物辩证法的总观点</strong>。[cite: 165][cite_start]<br><br><strong>联系具有普遍性</strong>：世界是相互联系的统一整体。[cite: 166][cite_start]<br><strong>联系具有条件性</strong>：尊重规律前提下，人可以改变条件，推动事物发展。[cite: 167]" },
+            [cite_start]{ set: 3, sub: "马原", q: "“借牧”对创新思维处理人与自然关系有何启示?", a: "<strong>创新思维</strong>是开拓创新、因时制宜的能力。[cite: 170][cite_start]<br><br>“借牧”的创新在于发现了固有联系并<strong>能动地建立新联系</strong>。[cite: 172][cite_start]<br><br>人类改造世界必须<strong>遵循自然规律</strong>，合理调节人与自然的物质变换。[cite: 175]" },
+            [cite_start]{ set: 3, sub: "新思想", q: "为什么要推动区域协调发展?", a: "中国式现代化是<strong>全体人民共同富裕的现代化</strong>。[cite: 180][cite_start]<br><br>必须坚持以人民为中心，防止两极分化。[cite: 180][cite_start]<br><br><strong>推动区域协调发展是解决不平衡不充分问题的重要途径</strong>，是促进共同富裕的内在要求。[cite: 181]" },
+            [cite_start]{ set: 3, sub: "新思想", q: "人文经济学对文化赋能经济有何启示?", a: "中国式现代化是<strong>物质文明和精神文明相协调的现代化</strong>。[cite: 184][cite_start]<br><br>人文经济学打破“重物质轻精神”逻辑。[cite: 185][cite_start]<br><strong>(对经济)</strong> 文化是新引擎和助推器。[cite: 186][cite_start]<br><strong>(对人民)</strong> 文化是满足美好生活需要的重要因素。[cite: 187]" },
+            [cite_start]{ set: 3, sub: "史纲", q: "分析“两个确立”的决定性意义", a: "遵义会议表明，<strong>核心问题至关紧要</strong>。[cite: 193][cite_start]<br><br>遵义会议确立了毛泽东的领导地位。新时代变革是在习近平核心领导下取得的。[cite: 194, 195][cite_start]<br><br><strong>“两个确立”是新时代取得成就的决定性因素</strong>，是应对不确定性的最大确定性。[cite: 195]" },
+            [cite_start]{ set: 3, sub: "史纲", q: "如何理解“长征胜利是方向和道路的胜利”?", a: "启示：<strong>只有立足实际、独立自主开辟道路，才能走向胜利。</strong>[cite: 198][cite_start]<br><br>长征也是联系实际、创新理论的过程。[cite: 199][cite_start]<br><br>长征实现了从国内革命战争向抗日民族战争的转变。[cite: 200]" },
+            [cite_start]{ set: 3, sub: "史纲", q: "中共如何在统一战线中发挥中流砥柱作用?", a: "①率先高举武装抗日旗帜。[cite: 203][cite_start]<br>②<strong>倡导并维护</strong>抗日民族统一战线。[cite: 204][cite_start]<br>③坚持<strong>全面抗战路线</strong>，开辟敌后战场(中坚力量)。[cite: 205, 206][cite_start]<br>④以模范行动支撑全民族希望。[cite: 207][cite_start]<br><strong>策略：</strong>坚持独立自主，对国民党既团结又斗争。[cite: 208]" },
+            [cite_start]{ set: 3, sub: "思修", q: "应当怎样认识人生价值?", a: "<strong>人生价值包含自我价值和社会价值。</strong>[cite: 214][cite_start]<br><br><strong>自我价值</strong>：对自己的生存发展有价值。[cite: 215][cite_start]<br><strong>社会价值</strong>：对社会、他人有价值。[cite: 216][cite_start]<br><br>自我价值是必要条件；<strong>社会价值是重要条件</strong>。二者相互依存。[cite: 218, 220]" },
+            [cite_start]{ set: 3, sub: "思修", q: "新时代青年如何选择职业?", a: "①<strong>树立崇高的职业理想</strong> (不仅谋生，更是奉献)。[cite: 224][cite_start]<br>②<strong>服从社会发展的需要</strong>。[cite: 225][cite_start]<br>③树立幸福生活靠劳动创造的观念。[cite: 226][cite_start]<br><br>到祖国最需要的地方发光发热。[cite: 227]" },
+            [cite_start]{ set: 3, sub: "当代", q: "为什么说中国是“绿色发展的坚定行动派”?", a: "中国提出共建地球生命共同体，<strong>实现了由参与者到引领者的转变</strong>。[cite: 233][cite_start]<br><br>中国宣布新一轮国家自主贡献，注入信心。[cite: 234][cite_start]<br>中国提出<strong>“绿水青山就是金山银山”</strong>，提供中国方案。[cite: 234]" },
+            [cite_start]{ set: 3, sub: "当代", q: "中国作为“赋能型大国”如何提供稳定性?", a: "<strong>构建人类命运共同体</strong>，中国是行动派。[cite: 237][cite_start]<br><br>中国践行多边主义，提出四大倡议，赋能全球治理。[cite: 239][cite_start]<br><strong>中国是世界经济增长的主要稳定器</strong>。[cite: 240][cite_start]<br>中国主动扩大对外开放。[cite: 241]" },
+
+            // 第四套
+            [cite_start]{ set: 4, sub: "马原", q: "分析“不唯上、不唯书、只唯实”的哲学原理", a: "即反对盲从权威，<strong>一切从实际出发</strong>。[cite: 248][cite_start]<br><br>从实际出发是认识论的根本要求，要在实践中按规律办事。[cite: 248][cite_start]<br><br><strong>实践决定认识</strong>，实践是检验真理唯一标准。[cite: 249]" },
+            [cite_start]{ set: 4, sub: "马原", q: "“地瓜经济”体现了怎样的思维能力?", a: "体现了<strong>辩证思维、系统思维、战略思维</strong>。[cite: 252][cite_start]<br><br><strong>辩证思维</strong>：联系、发展、全面。[cite: 253][cite_start]<br><strong>系统思维</strong>：把握全局与局部、当前与长远。[cite: 254][cite_start]<br><strong>战略思维</strong>：整体性、全局性、长期性。[cite: 255]" },
+            [cite_start]{ set: 4, sub: "新思想", q: "高质量发展最重要是“加快科技自立自强，发展新质生产力”?", a: "<strong>高水平科技自立自强是高质量发展的战略支撑。</strong>[cite: 262][cite_start]<br><br><strong>新质生产力</strong>是创新起主导作用的先进生产力质态。[cite: 263][cite_start]<br><strong>科技创新是核心要素</strong>。[cite: 263][cite_start]<br><br>发展新质生产力是推动高质量发展的内在要求。[cite: 264]" },
+            [cite_start]{ set: 4, sub: "新思想", q: "为什么要“坚持统筹发展和安全”?", a: "①<strong>发展和安全是两件大事</strong>。发展是动力，安全是保障。[cite: 268, 269][cite_start]<br>②<strong>发展具有基础性</strong>。发展是解决安全问题的总钥匙。[cite: 270][cite_start]<br>③<strong>发展和安全都是硬道理</strong>。要实现良性互动。[cite: 271]" },
+            [cite_start]{ set: 4, sub: "史纲", q: "“延安作风”为什么能打败“西安作风”?", a: "毛泽东把党的建设作为“伟大的工程”。[cite: 276][cite_start]<br><br>延安时期形成了<strong>理论联系实际、密切联系群众、批评和自我批评</strong>三大优良作风。[cite: 277][cite_start]<br><br>党的作风关系人心向背，关系生死存亡。[cite: 276]" },
+            [cite_start]{ set: 4, sub: "史纲", q: "作风建设为什么必须“常抓不懈”?", a: "<strong>历史脉络</strong>：三大纪律 -> 延安整风 -> 两个务必 -> 八项规定。[cite: 281, 282, 283, 285][cite_start]<br><br><strong>作风建设是党的建设的永恒主题</strong>。[cite: 286][cite_start]<br>作风问题具有顽固性、反复性，要打持久战。[cite: 286]" },
+            [cite_start]{ set: 4, sub: "思修", q: "为什么说“商业热情不能扰乱公共秩序”?", a: "<strong>公共生活需要公共秩序。</strong>[cite: 292][cite_start]<br><br>有序的公共生活是社会生产的基础，生活质量的保障。[cite: 293][cite_start]<br><br><strong>遵纪守法是全体公民的基本行为准则</strong>。[cite: 295]" },
+            [cite_start]{ set: 4, sub: "思修", q: "评选“最美家庭”有何意义?", a: "家风是社会风气的重要组成部分。[cite: 299][cite_start]<br><br>“最美家庭”是<strong>涵养社会主义核心价值观的深厚土壤</strong>。[cite: 301][cite_start]<br><br>能发挥价值观的凝聚力，增进社会和谐。[cite: 302]" },
+            [cite_start]{ set: 4, sub: "当代", q: "为什么既要弘扬共同价值，又要尊重文明多样性?", a: "<strong>全人类共同价值是最大公约数</strong> (和平、正义、民主)。[cite: 309][cite_start]<br><br><strong>尊重文明多样性是并行不悖的</strong>。[cite: 310][cite_start]<br>文明多样性是客观现实。文明因交流而互鉴，因互鉴而发展。[cite: 310]" },
+            [cite_start]{ set: 4, sub: "当代", q: "为什么说中国是“贸易投资自由化的最大旗手”?", a: "自由贸易是全球发展的动力。[cite: 313][cite_start]<br><br>①<strong>坚定维护多边贸易体制</strong> (反对保护主义)。[cite: 314][cite_start]<br>②<strong>坚定维护全球产业链供应链稳定</strong>。[cite: 316][cite_start]<br>③<strong>坚定维护开放合作环境</strong> (扩大制度型开放)。[cite: 317]" }
+        ];
+
+        // ================= 逻辑控制 =================
+        const App = {
+            state: {
+                currentSet: 1,
+                currentList: []
+            },
+
+            // 选择套卷
+            selectSet(set) {
+                this.state.currentSet = set;
+                document.getElementById('set-title').innerText = `第四套卷 - Set ${set}`; // Fix title logic if needed
+                if(set===1) document.getElementById('set-title').innerText = "第一套卷";
+                if(set===2) document.getElementById('set-title').innerText = "第二套卷";
+                if(set===3) document.getElementById('set-title').innerText = "第三套卷";
+                if(set===4) document.getElementById('set-title').innerText = "第四套卷";
+                this.switchView('subject');
+            },
+
+            // 核心功能：加载数据并跳转
+            startStudy(subject) {
+                // 1. 总是加载当前套卷的“所有”题目，以实现连续背诵
+                const fullSetList = DATA.filter(item => item.set === this.state.currentSet);
+                
+                // 2. 渲染卡片
+                const container = document.getElementById('card-container');
+                container.innerHTML = ''; 
+
+                fullSetList.forEach((item, index) => {
+                    const slide = document.createElement('div');
+                    slide.className = 'slide';
+                    slide.id = `card-${index}`; // 给每张卡片标记索引
+
+                    let bgClass = '';
+                    if(item.sub === '马原') bgClass = 'bg-1';
+                    else if(item.sub === '新思想') bgClass = 'bg-2';
+                    else if(item.sub === '史纲') bgClass = 'bg-3';
+                    else if(item.sub === '思修') bgClass = 'bg-4';
+                    else bgClass = 'bg-5';
+
+                    slide.innerHTML = `
+                        <div class="flash-card">
+                            <div class="fc-top">
+                                <div><span class="tag ${bgClass}">${item.sub}</span> 第 ${item.set} 套</div>
+                                <div>${index + 1} / ${fullSetList.length}</div>
+                            </div>
+                            <div class="fc-q">${item.q}</div>
+                            <div class="fc-mask" onclick="this.parentElement.classList.add('revealed')">点击查看答案</div>
+                            <div class="fc-a">${item.a}</div>
+                        </div>
+                    `;
+                    container.appendChild(slide);
+                });
+
+                this.switchView('study');
+
+                // 3. 如果选了特定科目，计算该科目第一题的索引并跳转
+                if (subject !== 'all') {
+                    // 找到该科目在 fullSetList 中的第一个索引
+                    const targetIndex = fullSetList.findIndex(item => item.sub === subject);
+                    if (targetIndex !== -1) {
+                        // 稍微延迟一下等待渲染，然后滚动
+                        setTimeout(() => {
+                            const targetElement = document.getElementById(`card-${targetIndex}`);
+                            if (targetElement) {
+                                targetElement.scrollIntoView({ behavior: 'auto' });
+                            }
+                        }, 10);
+                    }
+                }
+            },
+
+            switchView(id) {
+                document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+                document.getElementById('view-' + id).classList.add('active');
+            }
+        };
+    </script>
+</body>
+</html>
